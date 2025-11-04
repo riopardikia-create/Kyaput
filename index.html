@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎂 Catch the Cakes!</title>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #ffe5ec, #c77dff);
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
+      overflow: hidden;
+      color: white;
+    }
+
+    h1 {
+      margin-top: 20px;
+      font-size: 2rem;
+      text-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    }
+
+    #hud {
+      display: flex;
+      gap: 40px;
+      font-size: 1.2rem;
+      margin: 10px 0;
+    }
+
+    #game-area {
+      position: relative;
+      width: 80vw;
+      height: 65vh;
+      background: rgba(255, 255, 255, 0.2);
+      border: 2px solid rgba(255,255,255,0.4);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .entity {
+      position: absolute;
+      width: 70px;
+      height: 70px;
+      cursor: pointer;
+      animation: popIn 0.4s ease-out, float 1s ease-in-out infinite alternate;
+      transition: transform 0.2s ease;
+    }
+
+    .entity:hover {
+      transform: scale(1.15);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0); opacity: 0; }
+      80% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes float {
+      from { transform: translateY(0px); }
+      to { transform: translateY(-10px); }
+    }
+
+    .explosion {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      background: url('https://cdn-icons-png.flaticon.com/512/482/482059.png') no-repeat center;
+      background-size: contain;
+      animation: explode 0.5s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes explode {
+      from { transform: scale(0.5); opacity: 1; }
+      to { transform: scale(2); opacity: 0; }
+    }
+
+    #start-btn {
+      background: #ff8fab;
+      border: none;
+      color: white;
+      font-size: 1.2rem;
+      padding: 12px 24px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    #start-btn:hover {
+      background: #c9184a;
+    }
+
+    #end-message {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-top: 15px;
+      display: none;
+    }
+
+    .shake {
+      animation: shake 0.4s;
+    }
+
+    @keyframes shake {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(5px, -5px); }
+      50% { transform: translate(-5px, 5px); }
+      75% { transform: translate(5px, 5px); }
+      100% { transform: translate(0, 0); }
+    }
+  </style>
+</head>
+<body>
+  <h1>🎂 Catch the Cakes!</h1>
+  <div id="hud">
+    <span id="score">Skor: 0</span>
+    <span id="timer">Waktu: 60</span>
+    <span id="level">Level: 1</span>
+  </div>
+  <button id="start-btn">Mulai Game</button>
+  <div id="game-area"></div>
+  <p id="end-message"></p>
+
+  <!-- 🎵 Suara dan musik -->
+  <audio id="click-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_7b8da6a4e2.mp3"></audio>
+  <audio id="success-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_b0c4df1f6b.mp3"></audio>
+  <audio id="boom-sound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_776d69b8c8.mp3"></audio>
+  <audio id="bg-music" src="https://cdn.pixabay.com/download/audio/2023/02/28/audio_1f0534dc76.mp3?filename=cute-game-background-loop-140983.mp3" loop></audio>
+
+  <script>
+    const gameArea = document.getElementById("game-area");
+    const scoreDisplay = document.getElementById("score");
+    const timerDisplay = document.getElementById("timer");
+    const levelDisplay = document.getElementById("level");
+    const startBtn = document.getElementById("start-btn");
+    const endMessage = document.getElementById("end-message");
+    const clickSound = document.getElementById("click-sound");
+    const successSound = document.getElementById("success-sound");
+    const boomSound = document.getElementById("boom-sound");
+    const bgMusic = document.getElementById("bg-music");
+
+    let score = 0;
+    let timeLeft = 60; // 🕒 Waktu jadi 60 detik
+    let level = 1;
+    let entityInterval;
+    let timerInterval;
+
+    const cakeImages = [
+      "https://cdn-icons-png.flaticon.com/512/415/415733.png",
+      "https://cdn-icons-png.flaticon.com/512/1046/1046784.png",
+      "https://cdn-icons-png.flaticon.com/512/1998/1998627.png",
+      "https://cdn-icons-png.flaticon.com/512/706/706164.png",
+      "https://cdn-icons-png.flaticon.com/512/3161/3161554.png"
+    ];
+
+    const bombImage = "https://www.pngarts.com/files/10/Bomb-Explode-PNG-Free-Download.png";
+
+    function randomPosition(size) {
+      const x = Math.random() * (gameArea.clientWidth - size);
+      const y = Math.random() * (gameArea.clientHeight - size);
+      return { x, y };
+    }
+
+    function createEntity() {
+      const entity = document.createElement("img");
+      const size = 70;
+      const { x, y } = randomPosition(size);
+      const isBomb = Math.random() < 0.2;
+
+      entity.classList.add("entity");
+      entity.src = isBomb
+        ? bombImage
+        : cakeImages[Math.floor(Math.random() * cakeImages.length)];
+      entity.style.left = `${x}px`;
+      entity.style.top = `${y}px`;
+
+      entity.addEventListener("click", () => {
+        if (isBomb) {
+          score = Math.max(0, score - 3);
+          boomSound.play();
+
+          const explosion = document.createElement("div");
+          explosion.classList.add("explosion");
+          explosion.style.left = `${x - 25}px`;
+          explosion.style.top = `${y - 25}px`;
+          gameArea.appendChild(explosion);
+          setTimeout(() => explosion.remove(), 500);
+
+          gameArea.classList.add("shake");
+          setTimeout(() => gameArea.classList.remove("shake"), 400);
+        } else {
+          score++;
+          clickSound.play();
+          if (score % 10 === 0) levelUp();
+        }
+        scoreDisplay.textContent = `Skor: ${score}`;
+        if (gameArea.contains(entity)) gameArea.removeChild(entity);
+      });
+
+      gameArea.appendChild(entity);
+      setTimeout(() => {
+        if (gameArea.contains(entity)) gameArea.removeChild(entity);
+      }, 1000 - level * 50);
+    }
+
+    function levelUp() {
+      level++;
+      levelDisplay.textContent = `Level: ${level}`;
+      successSound.play();
+      clearInterval(entityInterval);
+      entityInterval = setInterval(createEntity, Math.max(500, 900 - level * 60));
+    }
+
+    function startGame() {
+      score = 0;
+      timeLeft = 60; // 🕒 Set ke 60 detik
+      level = 1;
+      scoreDisplay.textContent = "Skor: 0";
+      timerDisplay.textContent = "Waktu: 60";
+      levelDisplay.textContent = "Level: 1";
+      endMessage.style.display = "none";
+      startBtn.disabled = true;
+      gameArea.innerHTML = "";
+
+      bgMusic.currentTime = 0;
+      bgMusic.play();
+
+      entityInterval = setInterval(createEntity, 900);
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        timerDisplay.textContent = `Waktu: ${timeLeft}`;
+        if (timeLeft <= 0) endGame();
+      }, 1000);
+    }
+
+    function endGame() {
+      clearInterval(entityInterval);
+      clearInterval(timerInterval);
+      gameArea.innerHTML = "";
+      startBtn.disabled = false;
+      bgMusic.pause();
+      endMessage.textContent = `⏰ Waktu habis! Skor akhir kamu: ${score}`;
+      endMessage.style.display = "block";
+    }
+
+    startBtn.addEventListener("click", startGame);
+  </script>
+</body>
+</html>
